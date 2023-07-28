@@ -1,0 +1,53 @@
+name: Docker Image Build and Push
+
+inputs:
+  repository:
+    description: "Name of ECR Repository"
+    required: true
+  docker-context:
+    description: "Docker context"
+    required: false
+    default: "."
+  docker-file:
+    description: "Docker file"
+    required: false
+    default: "Dockerfile"
+  access-key-id:
+    description: "Access Key Id of AWS"
+    required: true
+  secret-access-key:
+    description: "Secret Access Key of AWS"
+    required: true
+
+runs:
+  using: "composite"
+
+  steps:
+    - name: Check out code
+      uses: actions/checkout@v3
+
+    - name: Configure AWS credentials
+      uses: aws-actions/configure-aws-credentials@v1
+      with:
+        aws-access-key-id: ${{ inputs.access-key-id }}
+        aws-secret-access-key: ${{ inputs.secret-access-key }}
+        aws-region: ap-northeast-2
+
+    - name: Login to Amazon ECR
+      id: login-ecr
+      uses: aws-actions/amazon-ecr-login@v1
+
+    - name: Split branch name
+      env:
+        BRANCH: ${{ github.ref_name }}
+      id: split
+      shell: bash
+      run: echo "::set-output name=fragment::${BRANCH##*/}"
+
+    - name: Build and push (with target)
+      uses: docker/build-push-action@v3
+      with:
+        context: ${{ inputs.docker-context }}
+        file: ${{ inputs.docker-file }}
+        push: true
+        tags: ${{ steps.login-ecr.outputs.registry }}/${{ inputs.repository }}:${{ steps.split.outputs.fragment }}
